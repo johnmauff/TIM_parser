@@ -1,0 +1,6 @@
+REENTRANT_X = False
+DT_THERM = 3600      
+
+VERT_COORDINATE = "ALE"  
+
+

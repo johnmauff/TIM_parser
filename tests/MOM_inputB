@@ -1,0 +1,3 @@
+REENTRANT_X = False  ! This is a comment
+DT_THERM = 3600      # This is a comment
+VERT_COORDINATE = "ALE" /* C block comment */
