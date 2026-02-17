@@ -1,6 +1,6 @@
                                 ! If true, use the MARBL tracer package."
 ! MARBL_FESEDFLUX_FILE = fesedflux_total_reduce_oxic_tx2_3v2.c231205.nc
-MARBL_FESEDFLUX_FILE = fesedflux_total_reduce_oxic_tx2_3v2.nc$
+MARBL_FESEDFLUX_FILE = fesedflux_total_reduce_oxic_tx2_3v2.nc
                                 ! "Name of file containing iron sediment flux
                                 !  forcing field for the MARBL tracer package."
 

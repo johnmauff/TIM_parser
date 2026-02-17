@@ -308,7 +308,7 @@ int main(int argc, char* argv[]) {
         }
 
     } catch (const pegtl::parse_error& e) {
-     	const auto& p = e.position_object();
+     	const auto& p = e.positions().front();
     	std::cerr << p.source << ":"
               << p.line << ":"
               << p.column << ": "
