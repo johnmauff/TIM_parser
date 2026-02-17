@@ -2,4 +2,10 @@ This contains the development version of a C++-based code that will parse the MO
 
 git clone --recurse-submodules https://github.com/johnmauff/TIM_parser
 
-The test code can be built using make.
+To build the code type:
+
+make
+
+The code can be run against several MOM6 configuration files found in the directory tests.  For example, type:
+
+mom6_parser tests/MOM_inputA
