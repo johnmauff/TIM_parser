@@ -2,9 +2,10 @@
 #include <tao/pegtl/contrib/analyze.hpp>
 
 #include <iostream>
+#include <vector>
+#include <string>
 #include <unordered_map>
 #include <variant>
-#include <string>
 
 namespace pegtl = tao::pegtl;
 
@@ -15,9 +16,10 @@ namespace pegtl = tao::pegtl;
 using Value = std::variant<bool, std::int64_t, double, std::string>;
 
 struct Config {
-    std::unordered_map<std::string, Value> data;
+    std::unordered_map<std::string, std::vector<std::string>> values;
     std::string current_key;
 };
+
 
 // ============================================================
 // Grammar
@@ -75,40 +77,59 @@ struct boolean : pegtl::sor<
 //        pegtl::plus< pegtl::digit >,
 //        pegtl::opt< exponent >
 //    > {};
-struct sign : pegtl::one<'+','-'> {};
+//
+// optional sign
+struct sign : pegtl::opt<pegtl::one<'+','-'>> {};
 
+// digits
 struct digits : pegtl::plus<pegtl::digit> {};
 
-// decimal part like 0.001 or 123.456
-struct decimal :
-    pegtl::seq<
-        pegtl::opt<digits>, // digits before dot optional (e.g., .001)
-        pegtl::one<'.'>,
-        digits              // at least one digit after dot
+// fractional part (dot with optional digits)
+struct fraction : pegtl::seq<pegtl::one<'.'>, pegtl::opt<digits>> {};
+
+// exponent part (e or E, optional sign, digits)
+struct exponent : pegtl::seq<pegtl::one<'e','E'>, sign, digits> {};
+
+// full floating-point number
+struct number : pegtl::seq<sign, digits, pegtl::opt<fraction>, pegtl::opt<exponent>> {};
+
+// "double quoted"
+struct double_quoted_string :
+    pegtl::if_must<
+        pegtl::one<'"'>,
+        pegtl::until< pegtl::one<'"'> >
     > {};
 
-// exponent part like e6 or e-06
-struct exponent :
+struct comma :
     pegtl::seq<
-        pegtl::one<'e','E'>,
-        pegtl::opt<sign>,
-        digits
-    > {};
-
-// floating point number: integer or decimal, optionally with exponent
-struct number :
-    pegtl::seq<
-        pegtl::sor<decimal, digits>,
-        pegtl::opt<exponent>
+        ws,
+        pegtl::one<','>,
+        ws
     > {};
 
 
+// 'single quoted'
+struct single_quoted_string :
+    pegtl::if_must<
+        pegtl::one<'\''>,
+        pegtl::until< pegtl::one<'\''> >
+    > {};
+
+// Either one
+struct quoted_string :
+    pegtl::sor<
+        double_quoted_string,
+        single_quoted_string
+    > {};
+
+/*
 // String (double quoted)
 struct quoted_string :
     pegtl::if_must<
         pegtl::one<'"'>,
         pegtl::until< pegtl::one<'"'> >
     > {};
+*/
 
 
 // File paths
@@ -123,7 +144,19 @@ struct path :
 
 
 // Value
-struct value : pegtl::sor< quoted_string, number,  path, boolean > {};
+struct single_value : pegtl::sor< quoted_string, number,  path, boolean > {};
+
+struct value :
+    pegtl::list<
+        single_value,
+        comma
+    > {};
+
+struct value_list :
+    pegtl::list<
+        value,
+        comma
+    > {};
 
 
 // C-block comment Opening: /*
@@ -208,8 +241,11 @@ struct action<identifier> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
         cfg.current_key = in.string();
+        // Start fresh for a new key
+        cfg.values[cfg.current_key].clear();
     }
 };
+
 
 // Boolean
 template<>
@@ -217,8 +253,9 @@ struct action<boolean> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
         std::string s = in.string();
-        bool val = (s == "True" || s == "true" || s == "T");
-        cfg.data[cfg.current_key] = val;
+        cfg.values[cfg.current_key].push_back(
+            (s == "T" || s == "True") ? "True" : "False"
+        );
     }
 };
 
@@ -227,33 +264,10 @@ template<>
 struct action<number> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
-        double val = std::stod(in.string());
-        cfg.data[cfg.current_key] = val;
+        cfg.values[cfg.current_key].push_back(in.string());
     }
 };
 
-/*
-
-// Integer
-template<>
-struct action<integer> {
-    template<typename Input>
-    static void apply(const Input& in, Config& cfg) {
-        cfg.data[cfg.current_key] = std::stoll(in.string());
-    }
-};
-
-
-// Real
-template<>
-struct action<real> {
-    template<typename Input>
-    static void apply(const Input& in, Config& cfg) {
-        cfg.data[cfg.current_key] = std::stod(in.string());
-    }
-};
-
-*/
 
 // String
 template<>
@@ -261,24 +275,29 @@ struct action<quoted_string> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
         std::string s = in.string();
-        cfg.data[cfg.current_key] = s.substr(1, s.size() - 2);
+        // Strip quotes
+        if (!s.empty() && (s.front() == '"' || s.front() == '\'')) {
+            s = s.substr(1, s.size() - 2);
+        }
+        cfg.values[cfg.current_key].push_back(s);
     }
 };
 
-// New path action
+// path
 template<>
 struct action<path> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
-	std::string s = in.string();
-	cfg.data[cfg.current_key] = s.substr(0,s.size());
+        cfg.values[cfg.current_key].push_back(in.string());
     }
 };
+
 
 // ============================================================
 // Main
 // ============================================================
-
+/*
+*/
 int main(int argc, char* argv[]) {
 
     if (argc != 2) {
@@ -294,19 +313,21 @@ int main(int argc, char* argv[]) {
 
         pegtl::parse<grammar, action>(in, cfg);
 
-        for (const auto& [k,v] : cfg.data) {
-            std::cout << k << " = ";
-	    std::visit([](auto&& val){
-    		using T = std::decay_t<decltype(val)>;
-    		if constexpr (std::is_same_v<T,bool>) {
-        	   std::cout << (val ? "True" : "False");
-    		} else {
-        	   std::cout << val;
-    		}
-	    }, v);
-            std::cout << "\n";
-        }
+	// ------------------- Print all entries -------------------
+        for (auto it = cfg.values.begin(); it != cfg.values.end(); ++it) {
+           const std::string& key = it->first;
+           const std::vector<std::string>& vec = it->second;
 
+           std::cout << key << " = ";
+
+           for (size_t i = 0; i < vec.size(); ++i) {
+           std::cout << vec[i];
+           if (i + 1 < vec.size()) {
+                std::cout << ", ";  // comma between elements
+            }
+          }
+          std::cout << "\n";
+        }
     } catch (const pegtl::parse_error& e) {
      	const auto& p = e.positions().front();
     	std::cerr << p.source << ":"
@@ -319,4 +340,3 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
-

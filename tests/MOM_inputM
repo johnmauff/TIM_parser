@@ -1,0 +1,9 @@
+KPP%
+N_SMOOTH = 3
+                                ! "default = 0
+                                ! parameter, the OBL depth is always at least as deep as the first layer."
+%KPP
+MLE%
+USE_BODNER23 = True
+                                ! "[Boolean] default = False
+%MLE

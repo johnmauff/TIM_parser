@@ -1,6 +1,9 @@
-A = "sd.nc"
+A = "sd.nc", "foo.nc"
 B = "fed.nc"
+foo = '"FILE:fed.nc,dz"'
 C = False.nc
 D = T
 E = t.nc
 F = ./t.nc
+G = 1.0e-03
+H = 1.e-3

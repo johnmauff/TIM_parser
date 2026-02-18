@@ -498,7 +498,6 @@ MAXIMUM_INT_DEPTH_CONFIG = "FNC1:5,8000.0,1.0,.01"
                                 ! FNC1:string - FNC1:dz_min,H_total,power,precision
                                 ! The list of maximum depths for each interface."
 
-! Line breaks things
 MAX_LAYER_THICKNESS_CONFIG = '"FILE:/glade/campaign/cesm/cesmdata/inputdata/ocn/mom/grid_indpt/dz_max_90th_quantile.nc,dz"'
 
                                 ! "default = 'NONE'
@@ -643,8 +642,7 @@ NUM_DIAG_COORDS = 2
                                 ! " The number of diagnostic vertical coordinates to use.
                                 ! For each coordinate, an entry in DIAG_COORDS must be provided."
 
-! Line breaks things
-!DIAG_COORDS = "z Z ZSTAR", "rho2 RHO2 RHO"
+DIAG_COORDS = "z Z ZSTAR", "rho2 RHO2 RHO"
                                 ! "A list of string tuples associating diag_table modules to
                                 ! a coordinate definition used for diagnostics. Each string
                                 ! is of the form MODULE_SUFFIX,PARAMETER_SUFFIX,COORDINATE_NAME."
@@ -1264,8 +1262,7 @@ VISC_REM_BUG = False
                                 ! flags, VISC_REM_TIMESTEP_BUG in MOM_dynamics_split_RK2(b) and
                                 ! VISC_REM_BT_WEIGHT_BUG in MOM_barotropic."
 
-! Line breaks things
-!IC_OUTPUT_FILE = 'MOM_IC'
+IC_OUTPUT_FILE = 'MOM_IC'
                                 ! "default = 'MOM_IC'
                                 ! The file into which to write the initial conditions."
 
