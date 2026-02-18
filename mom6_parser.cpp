@@ -15,11 +15,11 @@ namespace pegtl = tao::pegtl;
 
 using Value = std::variant<bool, std::int64_t, double, std::string>;
 
+// Stores information read in from the MOM configuration file
 struct Config {
     std::unordered_map<std::string, std::vector<std::string>> values;
     std::string current_key;
 };
-
 
 // ============================================================
 // Grammar
@@ -32,6 +32,14 @@ struct identifier :
     pegtl::seq<
         pegtl::sor< pegtl::alpha, pegtl::one<'_'> >,
         pegtl::star< pegtl::sor< pegtl::alnum, pegtl::one<'_'> > >
+    > {};
+
+// delimiter for vector assignment
+struct comma :
+    pegtl::seq<
+        ws,
+        pegtl::one<','>,
+        ws
     > {};
 
 // Match "true" case-insensitively
@@ -61,23 +69,8 @@ struct boolean : pegtl::sor<
     pegtl::seq< pegtl::one<'.'>, false_kw, pegtl::one<'.'> >
 > {};
 
-// Integer
-//struct integer :
-//    pegtl::seq< pegtl::opt< pegtl::one<'+','-'> >, pegtl::plus< pegtl::digit > > {};
-
-// Real
-//struct exponent :
-//    pegtl::seq< pegtl::one<'e','E'>, pegtl::opt< pegtl::one<'+','-'> >, pegtl::plus< pegtl::digit > > {};
-
-//struct real :
-//    pegtl::seq<
-//        pegtl::opt< pegtl::one<'+','-'> >,
-//        pegtl::plus< pegtl::digit >,
-//        pegtl::one<'.'>,
-//        pegtl::plus< pegtl::digit >,
-//        pegtl::opt< exponent >
-//    > {};
-//
+// Numbers:  The following define either floating point 
+//           or integer numbers
 // optional sign
 struct sign : pegtl::opt<pegtl::one<'+','-'>> {};
 
@@ -100,14 +93,6 @@ struct double_quoted_string :
         pegtl::until< pegtl::one<'"'> >
     > {};
 
-struct comma :
-    pegtl::seq<
-        ws,
-        pegtl::one<','>,
-        ws
-    > {};
-
-
 // 'single quoted'
 struct single_quoted_string :
     pegtl::if_must<
@@ -115,24 +100,15 @@ struct single_quoted_string :
         pegtl::until< pegtl::one<'\''> >
     > {};
 
-// Either one
+// A general quoted string
 struct quoted_string :
     pegtl::sor<
         double_quoted_string,
         single_quoted_string
     > {};
 
-/*
-// String (double quoted)
-struct quoted_string :
-    pegtl::if_must<
-        pegtl::one<'"'>,
-        pegtl::until< pegtl::one<'"'> >
-    > {};
-*/
 
-
-// File paths
+// File paths do not need to be quoted
 struct path_char :
     pegtl::sor<
         pegtl::alnum,
@@ -172,14 +148,11 @@ struct c_comment_close : pegtl::string<'*','/'> {};
 > {};
 
 
-// Comment start
-
+// Comment start  Supports #, !, or //
 struct comment_start : pegtl::sor<
    pegtl::one<'!','#'>,
    pegtl::string<'/','/'>
 > {};
-//struct comment_start : pegtl::one<'!','#'> {};
-
 
 // Comment: must consume at least one character, stop at eolf or eof
 struct comment :
@@ -187,7 +160,6 @@ struct comment :
         pegtl::seq< ws, comment_start, pegtl::star< pegtl::not_one< '\n', '\r' > > >,
         pegtl::seq< ws, pegtl::string<'/','*'>, pegtl::until< pegtl::string<'*','/'> > >
     > {};
-
 
 // Assignment (with optional inline comment)
 struct assignment :
@@ -246,7 +218,6 @@ struct action<identifier> {
     }
 };
 
-
 // Boolean
 template<>
 struct action<boolean> {
@@ -267,7 +238,6 @@ struct action<number> {
         cfg.values[cfg.current_key].push_back(in.string());
     }
 };
-
 
 // String
 template<>
@@ -336,7 +306,6 @@ int main(int argc, char* argv[]) {
               << e.what() << "\n";
     	return 1;
     }
-
 
     return 0;
 }
