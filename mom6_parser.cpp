@@ -15,7 +15,9 @@ namespace pegtl = tao::pegtl;
 
 using Value = std::variant<bool, std::int64_t, double, std::string>;
 
+// ============================================================
 // Stores information read in from the MOM configuration file
+// ============================================================
 struct Config {
     std::unordered_map<std::string, std::vector<std::string>> values;
     std::string current_key;
@@ -25,7 +27,8 @@ struct Config {
 // Grammar
 // ============================================================
 // Whitespace: spaces or tabs (never consumes newline)
-struct ws : pegtl::star< pegtl::sor< pegtl::one<' '>, pegtl::one<'\t'> > > {};
+struct ws : 
+    pegtl::star< pegtl::sor< pegtl::one<' '>, pegtl::one<'\t'> > > {};
 
 // Identifier
 struct identifier :
@@ -36,11 +39,7 @@ struct identifier :
 
 // delimiter for vector assignment
 struct comma :
-    pegtl::seq<
-        ws,
-        pegtl::one<','>,
-        ws
-    > {};
+    pegtl::seq< ws, pegtl::one<','>, ws > {};
 
 // Match "true" case-insensitively
 struct true_kw : pegtl::seq<
@@ -72,87 +71,74 @@ struct boolean : pegtl::sor<
 // Numbers:  The following define either floating point 
 //           or integer numbers
 // optional sign
-struct sign : pegtl::opt<pegtl::one<'+','-'>> {};
+struct sign : 
+    pegtl::opt<pegtl::one<'+','-'>> {};
 
 // digits
-struct digits : pegtl::plus<pegtl::digit> {};
+struct digits : 
+    pegtl::plus<pegtl::digit> {};
 
 // fractional part (dot with optional digits)
-struct fraction : pegtl::seq<pegtl::one<'.'>, pegtl::opt<digits>> {};
+struct fraction : 
+    pegtl::seq<pegtl::one<'.'>, pegtl::opt<digits>> {};
 
 // exponent part (e or E, optional sign, digits)
-struct exponent : pegtl::seq<pegtl::one<'e','E'>, sign, digits> {};
+struct exponent : 
+    pegtl::seq<pegtl::one<'e','E'>, sign, digits> {};
 
 // full floating-point number
-struct number : pegtl::seq<sign, digits, pegtl::opt<fraction>, pegtl::opt<exponent>> {};
+struct number : 
+    pegtl::seq<sign, digits, pegtl::opt<fraction>, pegtl::opt<exponent>> {};
 
 // "double quoted"
 struct double_quoted_string :
-    pegtl::if_must<
-        pegtl::one<'"'>,
-        pegtl::until< pegtl::one<'"'> >
-    > {};
+    pegtl::if_must< pegtl::one<'"'>, pegtl::until< pegtl::one<'"'> > > {};
 
 // 'single quoted'
 struct single_quoted_string :
-    pegtl::if_must<
-        pegtl::one<'\''>,
-        pegtl::until< pegtl::one<'\''> >
-    > {};
+    pegtl::if_must< pegtl::one<'\''>, pegtl::until< pegtl::one<'\''> > > {};
 
 // A general quoted string
 struct quoted_string :
-    pegtl::sor<
-        double_quoted_string,
-        single_quoted_string
-    > {};
+    pegtl::sor< double_quoted_string, single_quoted_string > {};
 
 
 // File paths do not need to be quoted
 struct path_char :
-    pegtl::sor<
-        pegtl::alnum,
-        pegtl::one<'/','_','-','.'>
-    > {};
+    pegtl::sor< pegtl::alnum, pegtl::one<'/','_','-','.'> > {};
 
-struct path :
+struct path : 
     pegtl::plus<path_char> {};
 
-
 // Value
-struct single_value : pegtl::sor< quoted_string, number,  path, boolean > {};
+struct single_value : 
+    pegtl::sor< quoted_string, number,  path, boolean > {};
 
-struct value :
-    pegtl::list<
-        single_value,
-        comma
-    > {};
+struct value : 
+    pegtl::list< single_value, comma > {};
 
-struct value_list :
-    pegtl::list<
-        value,
-        comma
-    > {};
-
+struct value_list : 
+    pegtl::list< value, comma > {};
 
 // C-block comment Opening: /*
-struct c_comment_open : pegtl::string<'/','*'> {};
+struct c_comment_open : 
+    pegtl::string<'/','*'> {};
 
 // Closing: */
-struct c_comment_close : pegtl::string<'*','/'> {};
+struct c_comment_close : 
+    pegtl::string<'*','/'> {};
 
 // C-style comment: /* ... */  (spans multiple lines)
- struct c_comment : pegtl::seq<
-    pegtl::string<'/','*'>,    // match /* literally
-    pegtl::until< pegtl::string<'*','/'> >
-> {};
+ struct c_comment :
+    pegtl::seq<
+    	pegtl::string<'/','*'>,    // match /* literally
+    	pegtl::until< pegtl::string<'*','/'> >
+    > {};
 
 
 // Comment start  Supports #, !, or //
-struct comment_start : pegtl::sor<
-   pegtl::one<'!','#'>,
-   pegtl::string<'/','/'>
-> {};
+struct comment_start : 
+   pegtl::sor< pegtl::one<'!','#'>, pegtl::string<'/','/'> > {};
 
 // Comment: must consume at least one character, stop at eolf or eof
 struct comment :
@@ -172,21 +158,15 @@ struct assignment :
 
 // struct content line
 struct content_line : 
-    pegtl::seq< 
-	pegtl::sor<assignment, comment, c_comment>, 
-	pegtl::eol
-    > {};
+    pegtl::seq< pegtl::sor<assignment, comment, c_comment>, pegtl::eol > {};
 
 //struct blank_line :
-struct blank_line :
+struct blank_line : 
     pegtl::eol{};
 
 // struct normal_line
 struct normal_line :
-    pegtl::sor<
-	content_line,
-	blank_line
-    >{};
+    pegtl::sor< content_line, blank_line >{};
 
 // last line in the file
 struct last_line :
@@ -205,7 +185,8 @@ struct grammar :
 // ============================================================
 
 template<typename Rule>
-struct action : pegtl::nothing<Rule> {};
+struct action : 
+    pegtl::nothing<Rule> {};
 
 // Capture key
 template<>
