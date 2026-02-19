@@ -1315,7 +1315,7 @@ SKEB_GM_COEF = 0.75
                                 ! "[nondim] default = 0.0
                                 ! Fraction of GM work that is added to backscatter rate."
 
-! KPP%
+KPP%
 N_SMOOTH = 3
                                 ! "default = 0
                                 ! The number of times the 1-1-4-1-1 Laplacian filter is applied on
@@ -1352,8 +1352,8 @@ MINIMUM_OBL_DEPTH = 5.0
                                 ! If non-zero, a minimum depth to use for KPP OBL depth. Independent of this
                                 ! parameter, the OBL depth is always at least as deep as the first layer."
 
-! %KPP
-! MLE%
+%KPP
+MLE%
 USE_BODNER23 = True
                                 ! "[Boolean] default = False
                                 ! If true, use the Bodner et al., 2023, formulation of the re-stratifying
@@ -1398,4 +1398,4 @@ MLD_DECAYING_TFILTER = 2592000.0
                                 ! when the filtered BLD is shallower than the running mean. A value of 0 instantaneously sets
                                 ! the running mean to the current filtered BLD value."
 
-! %MLE
+%MLE

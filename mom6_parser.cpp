@@ -19,7 +19,10 @@ using Value = std::variant<bool, std::int64_t, double, std::string>;
 // Stores information read in from the MOM configuration file
 // ============================================================
 struct Config {
-    std::unordered_map<std::string, std::vector<std::string>> values;
+    // map: block_name -> key -> vector<string>
+    std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> values;
+
+    std::string current_block = "global";  // default when outside blocks
     std::string current_key;
 };
 
@@ -147,6 +150,23 @@ struct comment :
         pegtl::seq< ws, pegtl::string<'/','*'>, pegtl::until< pegtl::string<'*','/'> > >
     > {};
 
+// configuration blocks
+struct block_open :
+    pegtl::seq<
+        identifier,
+        pegtl::one<'%'>
+    > {};
+
+struct block_close :
+    pegtl::seq<
+        pegtl::one<'%'>,
+        identifier
+    > {};
+
+struct block_content :
+    pegtl::until< block_close > {};
+
+
 // Assignment (with optional inline comment)
 struct assignment :
     pegtl::seq<
@@ -164,13 +184,24 @@ struct content_line :
 struct blank_line : 
     pegtl::eol{};
 
+struct block :
+    pegtl::seq<
+        block_open,
+	pegtl::eol,
+	pegtl::star< 
+	   pegtl::sor< content_line, blank_line>   // This is a normal line minus the block... So block is not recursive
+	>,
+        block_close,
+        pegtl::opt< pegtl::eol>
+    > {};
+
 // struct normal_line
 struct normal_line :
-    pegtl::sor< content_line, blank_line >{};
+    pegtl::sor<block, content_line, blank_line >{};
 
 // last line in the file
 struct last_line :
-    pegtl::sor<assignment,comment,c_comment> {};
+    pegtl::sor<block, assignment, comment, c_comment> {};
 
 // File
 struct grammar :
@@ -194,55 +225,75 @@ struct action<identifier> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
         cfg.current_key = in.string();
-        // Start fresh for a new key
-        cfg.values[cfg.current_key].clear();
     }
 };
 
-// Boolean
-template<>
-struct action<boolean> {
-    template<typename Input>
-    static void apply(const Input& in, Config& cfg) {
-        std::string s = in.string();
-        cfg.values[cfg.current_key].push_back(
-            (s == "T" || s == "True") ? "True" : "False"
-        );
-    }
-};
-
-// Numbers
 template<>
 struct action<number> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
-        cfg.values[cfg.current_key].push_back(in.string());
+        cfg.values[cfg.current_block][cfg.current_key].push_back(in.string());
     }
 };
 
-// String
+template<>
+struct action<boolean> {
+    template<typename Input>
+    static void apply(const Input& in, Config& cfg) {
+        std::string val = (in.string() == "True" || in.string() == "T") ? "True" : "False";
+        cfg.values[cfg.current_block][cfg.current_key].push_back(val);
+    }
+};
+
 template<>
 struct action<quoted_string> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
         std::string s = in.string();
-        // Strip quotes
-        if (!s.empty() && (s.front() == '"' || s.front() == '\'')) {
-            s = s.substr(1, s.size() - 2);
-        }
-        cfg.values[cfg.current_key].push_back(s);
+        if (!s.empty()) s = s.substr(1, s.size()-2); // remove quotes
+        cfg.values[cfg.current_block][cfg.current_key].push_back(s);
     }
 };
 
-// path
 template<>
 struct action<path> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
-        cfg.values[cfg.current_key].push_back(in.string());
+        cfg.values[cfg.current_block][cfg.current_key].push_back(in.string());
     }
 };
 
+// blocks
+template<>
+struct action<block_open> {
+    template<typename Input>
+    static void apply(const Input& in, Config& cfg) {
+        std::string s = in.string();
+        s.erase(std::remove(s.begin(), s.end(), '\n'), s.end());
+        s.pop_back(); // remove %
+        cfg.current_block = s;
+
+        // Optional: initialize map for this block
+        cfg.values[cfg.current_block]; 
+    }
+};
+
+template<>
+struct action<block_close> {
+    template<typename Input>
+    static void apply(const Input& in, Config& cfg) {
+        std::string s = in.string();
+        s.erase(std::remove(s.begin(), s.end(), '\n'), s.end());
+        s.erase(0,1); // remove leading %
+
+        if (s != cfg.current_block) {
+            throw std::runtime_error("Block mismatch: closing " + s +
+                                     " but open block is " + cfg.current_block);
+        }
+
+        cfg.current_block = "global"; // reset when leaving block
+    }
+};
 
 // ============================================================
 // Main
@@ -265,19 +316,17 @@ int main(int argc, char* argv[]) {
         pegtl::parse<grammar, action>(in, cfg);
 
 	// ------------------- Print all entries -------------------
-        for (auto it = cfg.values.begin(); it != cfg.values.end(); ++it) {
-           const std::string& key = it->first;
-           const std::vector<std::string>& vec = it->second;
-
-           std::cout << key << " = ";
-
-           for (size_t i = 0; i < vec.size(); ++i) {
-           std::cout << vec[i];
-           if (i + 1 < vec.size()) {
-                std::cout << ", ";  // comma between elements
+	for (const auto& [block, block_map] : cfg.values) {
+            std::cout << "[" << block << "]\n";
+            for (const auto& [key, vec] : block_map) {
+                std::cout << key << " = ";
+                for (size_t i = 0; i < vec.size(); ++i) {
+                    std::cout << vec[i];
+                    if (i+1 < vec.size()) std::cout << ", ";
+                }
+                std::cout << "\n";
             }
-          }
-          std::cout << "\n";
+            std::cout << "\n";
         }
     } catch (const pegtl::parse_error& e) {
      	const auto& p = e.positions().front();
