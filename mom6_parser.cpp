@@ -313,25 +313,49 @@ struct action<assignment_key> {
 // ============================================================
 /*
 */
-int main(int argc, char* argv[]) {
 
+
+int main(int argc, char** argv)
+{
     if (argc < 2) {
-        std::cerr << "Usage: mom6_parser <files>\n";
+        std::cerr << "Usage: " << argv[0]
+                  << " [-p|--print] config_file1 [config_file2 ...]\n";
         return 1;
     }
 
-    (void) tao::pegtl::analyze<grammar>();
+    bool print_config = false;
+    std::vector<std::string> files;
+
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+
+        if (arg == "-p" || arg == "--print") {
+            print_config = true;
+        } else {
+            files.push_back(arg);
+        }
+    }
+
+    if (files.empty()) {
+        std::cerr << "No configuration files provided.\n";
+        return 1;
+    }
+    // Turns on grammer debugging
+    // (void) tao::pegtl::analyze<grammar>();
+    
+    Config cfg;
+
     try {
-        Config cfg;
 
 	// Parse one or more files
-	for(int i = 1; i < argc; ++i){ 
-          pegtl::file_input<> in(argv[i]);
+	for (const auto& file : files) {
+          pegtl::file_input<> in(file);
           pegtl::parse<grammar, action>(in, cfg);
         }
 
-	// ------------------- Print all entries -------------------
-	for (const auto& [block, block_map] : cfg.values) {
+	if(print_config) {
+	  // ------------------- Print all entries -------------------
+	  for (const auto& [block, block_map] : cfg.values) {
             std::cout << "[" << block << "]\n";
             for (const auto& [key, vec] : block_map) {
                 std::cout << key << " = ";
@@ -342,7 +366,8 @@ int main(int argc, char* argv[]) {
                 std::cout << "\n";
             }
             std::cout << "\n";
-        }
+          }
+	}
     } catch (const pegtl::parse_error& e) {
      	const auto& p = e.positions().front();
     	std::cerr << p.source << ":"
