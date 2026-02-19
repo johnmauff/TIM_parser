@@ -166,11 +166,12 @@ struct block_close :
 struct block_content :
     pegtl::until< block_close > {};
 
+struct assignment_key : identifier {};
 
 // Assignment (with optional inline comment)
 struct assignment :
     pegtl::seq<
-        identifier, ws,
+        assignment_key, ws,
         pegtl::one<'='>,
         ws, value, ws,
         pegtl::opt<comment>
@@ -233,6 +234,7 @@ struct action<number> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
         cfg.values[cfg.current_block][cfg.current_key].push_back(in.string());
+        //cfg.values[cfg.current_block][cfg.current_key] = {in.string()};
     }
 };
 
@@ -295,6 +297,17 @@ struct action<block_close> {
     }
 };
 
+template<>
+struct action<assignment_key> {
+    template<typename Input>
+    static void apply(const Input& in, Config& cfg) {
+        cfg.current_key = in.string();
+
+        // Overwrite previous assignment
+        cfg.values[cfg.current_block][cfg.current_key].clear();
+    }
+};
+
 // ============================================================
 // Main
 // ============================================================
@@ -302,8 +315,8 @@ struct action<block_close> {
 */
 int main(int argc, char* argv[]) {
 
-    if (argc != 2) {
-        std::cerr << "Usage: mom6_parser <file>\n";
+    if (argc < 2) {
+        std::cerr << "Usage: mom6_parser <files>\n";
         return 1;
     }
 
@@ -311,9 +324,11 @@ int main(int argc, char* argv[]) {
     try {
         Config cfg;
 
-        pegtl::file_input<> in(argv[1]);
-
-        pegtl::parse<grammar, action>(in, cfg);
+	// Parse one or more files
+	for(int i = 1; i < argc; ++i){ 
+          pegtl::file_input<> in(argv[i]);
+          pegtl::parse<grammar, action>(in, cfg);
+        }
 
 	// ------------------- Print all entries -------------------
 	for (const auto& [block, block_map] : cfg.values) {
