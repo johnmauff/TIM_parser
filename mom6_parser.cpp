@@ -30,9 +30,7 @@ namespace common {
    // ============================================================
    // Grammar
    // ============================================================
-   // Whitespace: spaces or tabs (never consumes newline)
-   struct ws : 
-      pegtl::star< pegtl::sor< pegtl::one<' '>, pegtl::one<'\t'> > > {};
+   //
 
    // Identifier
    struct identifier :
@@ -41,9 +39,6 @@ namespace common {
         pegtl::star< pegtl::sor< pegtl::alnum, pegtl::one<'_'> > >
       > {};
 
-   // delimiter for vector assignment
-   struct comma :
-      pegtl::seq< ws, pegtl::one<','>, ws > {};
 
    // Match "true" case-insensitively
    struct true_kw : pegtl::seq<
@@ -118,7 +113,171 @@ namespace common {
    struct single_value : 
       pegtl::sor< quoted_string, number,  path, boolean > {};
 
-   struct value : 
+   struct assignment_key : identifier {};
+
+   //struct blank_line :
+   struct blank_line : 
+      pegtl::eol{};
+
+   struct block_open_base {};
+
+   struct block_close_base {};
+
+}
+
+namespace nml {
+
+   using namespace common;
+
+   struct bare_value : pegtl::plus< pegtl::not_one< ',', '/', '!', '\n', '\r' > > {};
+
+   struct single_value :
+      pegtl::sor<
+        quoted_string,  // 'abc'
+        number,         // 42, 3.14
+        boolean,        // .true., .false.
+        bare_value      // e.g., unquoted names or identifiers
+      > {};
+
+   // Value
+   //struct single_value : 
+   //   pegtl::sor< quoted_string, number, boolean > {};
+
+	     
+   struct nl : pegtl::one<'\n', '\r'> {};
+
+   struct comment :
+      pegtl::seq<
+         pegtl::one<'!'>,
+         pegtl::until<nl>
+      > {};
+
+   //struct ws :
+   //pegtl::star<
+   //   pegtl::sor<
+   //      pegtl::ascii::space,
+   //   >
+   //> {};
+
+   struct hws : 
+      pegtl::plus< 
+	pegtl::one<' ', '\t'> 
+      > {};  // horizontal whitespace
+
+   struct comma_hws :
+      pegtl::seq<
+         pegtl::opt<hws>,     // optional spaces/tabs before comma
+	 //ws,
+         pegtl::one<','>,
+	 //ws 
+         pegtl::opt<hws>      // optional spaces/tabs after comma
+      > {};
+
+   struct ws : 
+      pegtl::star<
+	pegtl::sor<
+	     pegtl::one<' ', '\t'>,
+	     nl
+	 >
+       > {};
+   struct comma_ws :
+      pegtl::seq< ws, pegtl::one<','>, ws 
+      > {};
+
+   // delimiter for vector assignment
+   //struct comma :
+   //   pegtl::seq< ws, pegtl::one<','>, ws > {};
+   //
+   struct comma_EOL :
+      pegtl:: seq<
+	 ws,
+         pegtl::one<','>,
+	 ws
+      > {};
+
+   struct value_list : 
+	pegtl::seq<
+	   single_value,
+	   pegtl::star<pegtl::seq<comma_ws,single_value>>,
+           pegtl::opt<comma_ws>
+	> {};
+
+   // Assignment (with optional inline comment)
+   struct assignment :
+      pegtl::seq<
+	ws,
+        assignment_key, 
+	ws,
+        pegtl::one<'='>,
+        ws, 
+	value_list,
+	pegtl::opt<comment>
+      > {};
+
+   struct blank_line : pegtl::seq<ws,nl> {};
+
+   struct content_line :
+   pegtl::seq< assignment, ws > {};
+
+   // configuration blocks
+   struct block_open :
+      pegtl::seq<
+	ws,
+	pegtl::one<'&'>,
+        identifier,
+	pegtl::opt<comment>,
+	pegtl::opt<nl>
+      >, 
+      block_open_base 
+    {};
+
+   struct block_close :
+       pegtl::seq<
+	 ws,
+	 pegtl::one<'/'>,
+	 ws,
+	 pegtl::opt<comment>,
+	 pegtl::opt<nl>
+       >, 
+       block_close_base 
+    {};
+
+   struct block_content :
+	pegtl::star<
+	   pegtl::sor<assignment,comment, blank_line>
+        > {};
+
+   //struct block :
+   struct block :
+      pegtl::seq<
+        block_open,
+	block_content,
+	block_close
+      > {};
+
+   // struct normal_line
+   struct normal_line :
+      pegtl::sor<block, comment>{};
+
+   // Fortran namelist File
+   struct grammar :
+       pegtl::must<
+	  pegtl::star<normal_line>, 
+	  pegtl::eof 
+       > {};
+}
+
+namespace MOMcfg {
+   using  namespace common;
+
+   // Whitespace: spaces or tabs (never consumes newline)
+   struct ws : 
+      pegtl::star< pegtl::sor< pegtl::one<' '>, pegtl::one<'\t'> > > {};
+   // delimiter for vector assignment
+   struct comma :
+      pegtl::seq< ws, pegtl::one<','>, ws > {};
+
+   struct value :
       pegtl::list< single_value, comma > {};
 
    struct value_list : 
@@ -139,7 +298,6 @@ namespace common {
     	pegtl::until< pegtl::string<'*','/'> >
       > {};
 
-
    // Comment start  Supports #, !, or //
    struct comment_start : 
       pegtl::sor< pegtl::one<'!','#'>, pegtl::string<'/','/'> > {};
@@ -150,99 +308,6 @@ namespace common {
         pegtl::seq< ws, comment_start, pegtl::star< pegtl::not_one< '\n', '\r' > > >,
         pegtl::seq< ws, pegtl::string<'/','*'>, pegtl::until< pegtl::string<'*','/'> > >
       > {};
-
-
-   struct assignment_key : identifier {};
-
-
-
-   //struct blank_line :
-   struct blank_line : 
-      pegtl::eol{};
-
-   struct block_open_base {};
-
-   struct block_close_base {};
-
-}
-
-namespace nml {
-
-   using namespace common;
-
-   // Assignment (with optional inline comment)
-   struct assignment :
-      pegtl::seq<
-        ws,assignment_key, ws,
-        pegtl::one<'='>,
-        ws, value, ws
-      > {};
-
-   struct content_line :
-   pegtl::seq< assignment, ws > {};
-
-   // struct content line
-//   struct content_line : 
-//      pegtl::seq< 
-//	pegtl::sor<assignment, comment, c_comment>,
-//       	pegtl::sor< 
-//	    pegtl::seq<comma,pegtl::eol>,
-//	    pegtl::eol 
-//	>
-//      > {};
-
-   // configuration blocks
-   struct block_open :
-      pegtl::seq<
-	ws,
-	pegtl::one<'&'>,
-        identifier>, 
-      block_open_base 
-    {};
-
-   struct block_close :
-       pegtl::seq<
-	 ws,
-	 pegtl::one<'/'>,
-	 ws
-       >, 
-       block_close_base 
-    {};
-
-   struct block_content :
-      pegtl::until< block_close > {};
-
-   //struct block :
-   struct block :
-      pegtl::seq<
-        block_open,
-	pegtl::until<
-	   block_close,
-	   pegtl::sor< 
-	     comma,
-	     //pegtl::sor<
-	     // 	pegtl::seq<assignment,comment>,
-	     	assignment,
-             //>,
-	     blank_line
-	   >
-	>
-      > {};
-
-   // struct normal_line
-   struct normal_line :
-      pegtl::sor<block, pegtl::seq<comment,pegtl::eol>,blank_line >{};
-
-   // Fortran namelist File
-   struct grammar :
-       pegtl::must<
-	  pegtl::star<normal_line>, 
-	  pegtl::eof 
-       > {};
-}
-
-namespace MOMcfg {
-   using  namespace common;
 
    // Assignment (with optional inline comment)
    struct assignment :
