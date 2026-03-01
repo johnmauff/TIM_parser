@@ -26,191 +26,279 @@ struct Config {
     std::string current_key;
 };
 
-// ============================================================
-// Grammar
-// ============================================================
-// Whitespace: spaces or tabs (never consumes newline)
-struct ws : 
-    pegtl::star< pegtl::sor< pegtl::one<' '>, pegtl::one<'\t'> > > {};
+namespace common {
+   // ============================================================
+   // Grammar
+   // ============================================================
+   // Whitespace: spaces or tabs (never consumes newline)
+   struct ws : 
+      pegtl::star< pegtl::sor< pegtl::one<' '>, pegtl::one<'\t'> > > {};
 
-// Identifier
-struct identifier :
-    pegtl::seq<
+   // Identifier
+   struct identifier :
+      pegtl::seq<
         pegtl::sor< pegtl::alpha, pegtl::one<'_'> >,
         pegtl::star< pegtl::sor< pegtl::alnum, pegtl::one<'_'> > >
-    > {};
+      > {};
 
-// delimiter for vector assignment
-struct comma :
-    pegtl::seq< ws, pegtl::one<','>, ws > {};
+   // delimiter for vector assignment
+   struct comma :
+      pegtl::seq< ws, pegtl::one<','>, ws > {};
 
-// Match "true" case-insensitively
-struct true_kw : pegtl::seq<
-    pegtl::sor< pegtl::one<'T','t'> >,
-    pegtl::sor< pegtl::one<'R','r'> >,
-    pegtl::sor< pegtl::one<'U','u'> >,
-    pegtl::sor< pegtl::one<'E','e'> >
-> {};
+   // Match "true" case-insensitively
+   struct true_kw : pegtl::seq<
+      pegtl::sor< pegtl::one<'T','t'> >,
+      pegtl::sor< pegtl::one<'R','r'> >,
+      pegtl::sor< pegtl::one<'U','u'> >,
+      pegtl::sor< pegtl::one<'E','e'> >
+   > {};
 
-// Match "false" case-insensitively
-struct false_kw : pegtl::seq<
-    pegtl::sor< pegtl::one<'F','f'> >,
-    pegtl::sor< pegtl::one<'A','a'> >,
-    pegtl::sor< pegtl::one<'L','l'> >,
-    pegtl::sor< pegtl::one<'S','s'> >,
-    pegtl::sor< pegtl::one<'E','e'> >
-> {};
+   // Match "false" case-insensitively
+   struct false_kw : pegtl::seq<
+      pegtl::sor< pegtl::one<'F','f'> >,
+      pegtl::sor< pegtl::one<'A','a'> >,
+      pegtl::sor< pegtl::one<'L','l'> >,
+      pegtl::sor< pegtl::one<'S','s'> >,
+      pegtl::sor< pegtl::one<'E','e'> >
+   > {};
 
-// Boolean
-struct boolean : pegtl::sor<
-    true_kw,
-    false_kw,
-    pegtl::sor< pegtl::one<'T','t'> >,
-    pegtl::sor< pegtl::one<'F','f'> >,
-    pegtl::seq< pegtl::one<'.'>, true_kw, pegtl::one<'.'> >,
-    pegtl::seq< pegtl::one<'.'>, false_kw, pegtl::one<'.'> >
-> {};
+   // Boolean
+   struct boolean : pegtl::sor<
+      true_kw,
+      false_kw,
+      pegtl::sor< pegtl::one<'T','t'> >,
+      pegtl::sor< pegtl::one<'F','f'> >,
+      pegtl::seq< pegtl::one<'.'>, true_kw, pegtl::one<'.'> >,
+      pegtl::seq< pegtl::one<'.'>, false_kw, pegtl::one<'.'> >
+   > {};
 
-// Numbers:  The following define either floating point 
-//           or integer numbers
-// optional sign
-struct sign : 
-    pegtl::opt<pegtl::one<'+','-'>> {};
+   // Numbers:  The following define either floating point 
+   //           or integer numbers
+   // optional sign
+   struct sign : 
+      pegtl::opt<pegtl::one<'+','-'>> {};
 
-// digits
-struct digits : 
-    pegtl::plus<pegtl::digit> {};
+   // digits
+   struct digits : 
+      pegtl::plus<pegtl::digit> {};
 
-// fractional part (dot with optional digits)
-struct fraction : 
-    pegtl::seq<pegtl::one<'.'>, pegtl::opt<digits>> {};
+   // fractional part (dot with optional digits)
+   struct fraction : 
+      pegtl::seq<pegtl::one<'.'>, pegtl::opt<digits>> {};
 
-// exponent part (e or E, optional sign, digits)
-struct exponent : 
-    pegtl::seq<pegtl::one<'e','E'>, sign, digits> {};
+   // exponent part (e or E, optional sign, digits)
+   struct exponent : 
+      pegtl::seq<pegtl::one<'e','E'>, sign, digits> {};
 
-// full floating-point number
-struct number : 
-    pegtl::seq<sign, digits, pegtl::opt<fraction>, pegtl::opt<exponent>> {};
+   // full floating-point number
+   struct number : 
+      pegtl::seq<sign, digits, pegtl::opt<fraction>, pegtl::opt<exponent>> {};
 
-// "double quoted"
-struct double_quoted_string :
-    pegtl::if_must< pegtl::one<'"'>, pegtl::until< pegtl::one<'"'> > > {};
+   // "double quoted"
+   struct double_quoted_string :
+      pegtl::if_must< pegtl::one<'"'>, pegtl::until< pegtl::one<'"'> > > {};
 
-// 'single quoted'
-struct single_quoted_string :
-    pegtl::if_must< pegtl::one<'\''>, pegtl::until< pegtl::one<'\''> > > {};
+   // 'single quoted'
+   struct single_quoted_string :
+      pegtl::if_must< pegtl::one<'\''>, pegtl::until< pegtl::one<'\''> > > {};
 
-// A general quoted string
-struct quoted_string :
-    pegtl::sor< double_quoted_string, single_quoted_string > {};
+   // A general quoted string
+   struct quoted_string :
+      pegtl::sor< double_quoted_string, single_quoted_string > {};
 
 
-// File paths do not need to be quoted
-struct path_char :
-    pegtl::sor< pegtl::alnum, pegtl::one<'/','_','-','.'> > {};
+   // File paths do not need to be quoted
+   struct path_char :
+      pegtl::sor< pegtl::alnum, pegtl::one<'/','_','-','.'> > {};
 
-struct path : 
-    pegtl::plus<path_char> {};
+   struct path : 
+      pegtl::plus<path_char> {};
 
-// Value
-struct single_value : 
-    pegtl::sor< quoted_string, number,  path, boolean > {};
+   // Value
+   struct single_value : 
+      pegtl::sor< quoted_string, number,  path, boolean > {};
 
-struct value : 
-    pegtl::list< single_value, comma > {};
+   struct value : 
+      pegtl::list< single_value, comma > {};
 
-struct value_list : 
-    pegtl::list< value, comma > {};
+   struct value_list : 
+      pegtl::list< value, comma > {};
 
-// C-block comment Opening: /*
-struct c_comment_open : 
-    pegtl::string<'/','*'> {};
+   // C-block comment Opening: /*
+   struct c_comment_open : 
+      pegtl::string<'/','*'> {};
 
-// Closing: */
-struct c_comment_close : 
-    pegtl::string<'*','/'> {};
+   // Closing: */
+   struct c_comment_close : 
+      pegtl::string<'*','/'> {};
 
-// C-style comment: /* ... */  (spans multiple lines)
- struct c_comment :
-    pegtl::seq<
+   // C-style comment: /* ... */  (spans multiple lines)
+   struct c_comment :
+      pegtl::seq<
     	pegtl::string<'/','*'>,    // match /* literally
     	pegtl::until< pegtl::string<'*','/'> >
-    > {};
+      > {};
 
 
-// Comment start  Supports #, !, or //
-struct comment_start : 
-   pegtl::sor< pegtl::one<'!','#'>, pegtl::string<'/','/'> > {};
+   // Comment start  Supports #, !, or //
+   struct comment_start : 
+      pegtl::sor< pegtl::one<'!','#'>, pegtl::string<'/','/'> > {};
 
-// Comment: must consume at least one character, stop at eolf or eof
-struct comment :
-    pegtl::sor<
+   // Comment: must consume at least one character, stop at eolf or eof
+   struct comment :
+      pegtl::sor<
         pegtl::seq< ws, comment_start, pegtl::star< pegtl::not_one< '\n', '\r' > > >,
         pegtl::seq< ws, pegtl::string<'/','*'>, pegtl::until< pegtl::string<'*','/'> > >
-    > {};
+      > {};
 
-// configuration blocks
-struct block_open :
-    pegtl::seq<
-        identifier,
-        pegtl::one<'%'>
-    > {};
 
-struct block_close :
-    pegtl::seq<
-        pegtl::one<'%'>,
-        identifier
-    > {};
+   struct assignment_key : identifier {};
 
-struct block_content :
-    pegtl::until< block_close > {};
 
-struct assignment_key : identifier {};
 
-// Assignment (with optional inline comment)
-struct assignment :
-    pegtl::seq<
-        assignment_key, ws,
+   //struct blank_line :
+   struct blank_line : 
+      pegtl::eol{};
+
+   struct block_open_base {};
+
+   struct block_close_base {};
+
+}
+
+namespace nml {
+
+   using namespace common;
+
+   // Assignment (with optional inline comment)
+   struct assignment :
+      pegtl::seq<
+        ws,assignment_key, ws,
+        pegtl::one<'='>,
+        ws, value, ws
+      > {};
+
+   struct content_line :
+   pegtl::seq< assignment, ws > {};
+
+   // struct content line
+//   struct content_line : 
+//      pegtl::seq< 
+//	pegtl::sor<assignment, comment, c_comment>,
+//       	pegtl::sor< 
+//	    pegtl::seq<comma,pegtl::eol>,
+//	    pegtl::eol 
+//	>
+//      > {};
+
+   // configuration blocks
+   struct block_open :
+      pegtl::seq<
+	ws,
+	pegtl::one<'&'>,
+        identifier>, 
+      block_open_base 
+    {};
+
+   struct block_close :
+       pegtl::seq<
+	 ws,
+	 pegtl::one<'/'>,
+	 ws
+       >, 
+       block_close_base 
+    {};
+
+   struct block_content :
+      pegtl::until< block_close > {};
+
+   //struct block :
+   struct block :
+      pegtl::seq<
+        block_open,
+	pegtl::until<
+	   block_close,
+	   pegtl::sor< 
+	     comma,
+	     //pegtl::sor<
+	     // 	pegtl::seq<assignment,comment>,
+	     	assignment,
+             //>,
+	     blank_line
+	   >
+	>
+      > {};
+
+   // struct normal_line
+   struct normal_line :
+      pegtl::sor<block, pegtl::seq<comment,pegtl::eol>,blank_line >{};
+
+   // Fortran namelist File
+   struct grammar :
+       pegtl::must<
+	  pegtl::star<normal_line>, 
+	  pegtl::eof 
+       > {};
+}
+
+namespace MOMcfg {
+   using  namespace common;
+
+   // Assignment (with optional inline comment)
+   struct assignment :
+      pegtl::seq<
+        ws,assignment_key, ws,
         pegtl::one<'='>,
         ws, value, ws,
         pegtl::opt<comment>
-    > {};
+      > {};
 
-// struct content line
-struct content_line : 
-    pegtl::seq< pegtl::sor<assignment, comment, c_comment>, pegtl::eol > {};
+   // struct content line
+   struct content_line : 
+      pegtl::seq< pegtl::sor<assignment, c_comment, comment>, pegtl::eol > {};
 
-//struct blank_line :
-struct blank_line : 
-    pegtl::eol{};
+   // configuration blocks
+   struct block_open :
+      pegtl::seq<
+        identifier,
+        pegtl::one<'%'>>, block_open_base {};
 
-struct block :
-    pegtl::seq<
+   struct block_close :
+      pegtl::seq<
+        pegtl::one<'%'>,
+        identifier>, block_close_base {};
+
+   struct block_content :
+      pegtl::until< block_close > {};
+
+   // Block of parameters
+   struct block :
+      pegtl::seq<
         block_open,
 	pegtl::eol,
 	pegtl::star< 
-	   pegtl::sor< content_line, blank_line>   // This is a normal line minus the block... So block is not recursive
+	   pegtl::sor< content_line, blank_line>  // This is a normal line minus the block... So block is not recursive
 	>,
         block_close,
         pegtl::opt< pegtl::eol>
-    > {};
+      > {};
 
-// struct normal_line
-struct normal_line :
-    pegtl::sor<block, content_line, blank_line >{};
+   // struct normal_line
+   struct normal_line :
+      pegtl::sor<block, content_line, blank_line >{};
 
-// last line in the file
-struct last_line :
-    pegtl::sor<block, assignment, comment, c_comment> {};
+   // last line in the file
+   struct last_line :
+      pegtl::sor<block, assignment, comment, c_comment> {};
 
-// File
-struct grammar :
-    pegtl::must<
-	pegtl::star<normal_line>, 
-	pegtl::opt<last_line>,
-	pegtl::eof 
-     > {};
+   // MOM_configuration File
+   struct grammar :
+       pegtl::must<
+	  pegtl::star<normal_line>, 
+	  pegtl::opt<last_line>,
+	  pegtl::eof 
+       > {};
+}
 
 // ============================================================
 // Actions
@@ -222,7 +310,7 @@ struct action :
 
 // Capture key
 template<>
-struct action<identifier> {
+struct action<common::identifier> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
         cfg.current_key = in.string();
@@ -230,7 +318,7 @@ struct action<identifier> {
 };
 
 template<>
-struct action<number> {
+struct action<common::number> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
         cfg.values[cfg.current_block][cfg.current_key].push_back(in.string());
@@ -239,7 +327,7 @@ struct action<number> {
 };
 
 template<>
-struct action<boolean> {
+struct action<common::boolean> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
         std::string val = (in.string() == "True" || in.string() == "T") ? "True" : "False";
@@ -248,7 +336,7 @@ struct action<boolean> {
 };
 
 template<>
-struct action<quoted_string> {
+struct action<common::quoted_string> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
         std::string s = in.string();
@@ -258,16 +346,16 @@ struct action<quoted_string> {
 };
 
 template<>
-struct action<path> {
+struct action<common::path> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
         cfg.values[cfg.current_block][cfg.current_key].push_back(in.string());
     }
 };
 
-// blocks
+// MOMcfg blocks
 template<>
-struct action<block_open> {
+struct action<MOMcfg::block_open> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
         std::string s = in.string();
@@ -281,7 +369,7 @@ struct action<block_open> {
 };
 
 template<>
-struct action<block_close> {
+struct action<MOMcfg::block_close> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
         std::string s = in.string();
@@ -297,8 +385,35 @@ struct action<block_close> {
     }
 };
 
+// NML  blocks
 template<>
-struct action<assignment_key> {
+struct action<nml::block_open> {
+    template<typename Input>
+    static void apply(const Input& in, Config& cfg) {
+        std::string s = in.string();
+        s.erase(std::remove(s.begin(), s.end(), '\n'), s.end());
+	s.erase(0,1); // remove leading &
+        cfg.current_block = s;
+
+        // Optional: initialize map for this block
+        cfg.values[cfg.current_block]; 
+    }
+};
+
+template<>
+struct action<nml::block_close> {
+    template<typename Input>
+    static void apply(const Input& in, Config& cfg) {
+	(void) in;
+        cfg.current_block = "global"; // reset when leaving block
+    }
+};
+
+
+
+
+template<>
+struct action<common::assignment_key> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
         cfg.current_key = in.string();
@@ -323,13 +438,20 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    enum class ParseMode {None, NML, CFG};
+    ParseMode mode = ParseMode::None;
+
     bool print_config = false;
     std::vector<std::string> files;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
 
-        if (arg == "-p" || arg == "--print") {
+	if (arg == "--nml") {
+	   mode = ParseMode::NML;
+	} else if (arg == "--cfg") {
+	   mode = ParseMode::CFG;
+	} else if (arg == "-p" || arg == "--print") {
             print_config = true;
         } else {
             files.push_back(arg);
@@ -350,7 +472,11 @@ int main(int argc, char** argv)
 	// Parse one or more files
 	for (const auto& file : files) {
           pegtl::file_input<> in(file);
-          pegtl::parse<grammar, action>(in, cfg);
+          if (mode == ParseMode::NML) {
+             pegtl::parse<nml::grammar, action>(in, cfg);
+	  } else {
+             pegtl::parse<MOMcfg::grammar, action>(in, cfg);
+	  }
         }
 
 	if(print_config) {
