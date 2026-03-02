@@ -129,7 +129,7 @@ namespace nml {
 
    using namespace common;
 
-   struct bare_value : pegtl::plus< pegtl::not_one< ',', '/', '!', '\n', '\r' > > {};
+//   struct bare_value : pegtl::plus< pegtl::not_one< ',', '/', '!', '\n', '\r' > > {};
 
    struct single_value :
       pegtl::sor< quoted_string, number, boolean > {};
@@ -148,12 +148,6 @@ namespace nml {
          pegtl::until<nl>
       > {};
 
-   //struct ws :
-   //pegtl::star<
-   //   pegtl::sor<
-   //      pegtl::ascii::space,
-   //   >
-   //> {};
    // Horizontal white space
    struct hws : pegtl::star< pegtl::one<' ','\t'>> {};
 
@@ -185,27 +179,6 @@ namespace nml {
            pegtl::opt<comma>
 	> {};
 
-//   struct continuation_value :
-//	pegtl::seq<
-//	   comma_ws,
-//	   pegtl::opt<comment>,
-//	   ws,
-//	   pegtl::not_at< assignment_key>,
-//	   single_value
-//	> {};
-   struct continuation_value :
-    pegtl::seq<
-        comma_hws,
-        ws,
-        single_value
-    > {};
-   
-//   struct value_list : 
-//	pegtl::seq<
-//	   single_value,
-//	   pegtl::star<comma_hws,single_value>
-//	> {};
-
    struct assignment_line :
       pegtl::seq<
         hws,
@@ -216,15 +189,6 @@ namespace nml {
         value_list,
         pegtl::opt< comment >
       > {};
-
-    struct continuation_line :
-      pegtl::seq<
-         hws,
-         value_list,
-	 pegtl::not_at<pegtl::one<'='>>
-       > {};
-
-
 
    // Assignment (with optional inline comment)
    struct assignment :
@@ -240,13 +204,6 @@ namespace nml {
 	  pegtl::opt<eol>
       > {};
  
-//    struct assignment : assignment_line {};
-//   struct assignment :
-//    pegtl::seq<
-//        assignment_line,
-//        pegtl::star< continuation_line >
-//    > {};
-
    struct blank_line : pegtl::seq<ws,nl> {};
 
    struct content_line :
@@ -278,7 +235,7 @@ namespace nml {
 
    struct block_content :
 	pegtl::star<
-	   pegtl::sor<assignment,comment, blank_line>
+	   pegtl::sor<assignment, comment, blank_line>
         > {};
 
    //struct block :
