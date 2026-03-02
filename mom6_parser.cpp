@@ -1,5 +1,4 @@
 #include <tao/pegtl.hpp>
-#include <tao/pegtl/contrib/analyze.hpp>
 
 #include <iostream>
 #include <vector>
@@ -28,7 +27,7 @@ struct Config {
 
 namespace common {
    // ============================================================
-   // Grammar
+   // Common grammar definitions
    // ============================================================
    //
 
@@ -39,33 +38,28 @@ namespace common {
         pegtl::star< pegtl::sor< pegtl::alnum, pegtl::one<'_'> > >
       > {};
 
+   // Different representation of boolean logicals
+   struct kw_true  : pegtl::ascii::istring<'t','r','u','e'> {};
+   struct kw_false : pegtl::ascii::istring<'f','a','l','s','e'> {};
+   struct short_true : pegtl::sor< pegtl::ascii::one<'t'>, pegtl::ascii::one<'T'> > {};
+   struct short_false : pegtl::sor< pegtl::ascii::one<'f'>, pegtl::ascii::one<'F'> > {};
 
-   // Match "true" case-insensitively
-   struct true_kw : pegtl::seq<
-      pegtl::sor< pegtl::one<'T','t'> >,
-      pegtl::sor< pegtl::one<'R','r'> >,
-      pegtl::sor< pegtl::one<'U','u'> >,
-      pegtl::sor< pegtl::one<'E','e'> >
-   > {};
-
-   // Match "false" case-insensitively
-   struct false_kw : pegtl::seq<
-      pegtl::sor< pegtl::one<'F','f'> >,
-      pegtl::sor< pegtl::one<'A','a'> >,
-      pegtl::sor< pegtl::one<'L','l'> >,
-      pegtl::sor< pegtl::one<'S','s'> >,
-      pegtl::sor< pegtl::one<'E','e'> >
-   > {};
-
-   // Boolean
-   struct boolean : pegtl::sor<
-      true_kw,
-      false_kw,
-      pegtl::sor< pegtl::one<'T','t'> >,
-      pegtl::sor< pegtl::one<'F','f'> >,
-      pegtl::seq< pegtl::one<'.'>, true_kw, pegtl::one<'.'> >,
-      pegtl::seq< pegtl::one<'.'>, false_kw, pegtl::one<'.'> >
-   > {};
+   // core boolean
+   struct boolean_core :
+    pegtl::sor<
+        kw_true,
+        kw_false,
+        short_true,
+        short_false
+    > {};
+   
+    // boolean
+    struct boolean :
+    pegtl::seq<
+        pegtl::opt< pegtl::one<'.'> >,
+        boolean_core,
+        pegtl::opt< pegtl::one<'.'> >
+    > {};
 
    // Numbers:  The following define either floating point 
    //           or integer numbers
@@ -101,27 +95,17 @@ namespace common {
    struct quoted_string :
       pegtl::sor< double_quoted_string, single_quoted_string > {};
 
-
-   // File paths do not need to be quoted
-   struct path_char :
-      pegtl::sor< pegtl::alnum, pegtl::one<'/','_','-','.'> > {};
-
-   struct path : 
-      pegtl::plus<path_char> {};
-
-   // Value
-   struct single_value : 
-      pegtl::sor< quoted_string, number,  path, boolean > {};
-
+   // Identifies the variable that is being assigned.
+   //  The overwrite features of the MOM configuration files 
+   //  requires special treatment of the assignment variable
    struct assignment_key : identifier {};
 
+   // Horizontal white space.  THis does not consume 
+   // an end-of-line characters
+   struct hws : pegtl::star< pegtl::one<' ','\t'>> {};
+
    //struct blank_line :
-   struct blank_line : 
-      pegtl::eol{};
-
-   struct block_open_base {};
-
-   struct block_close_base {};
+   struct blank_line : pegtl::seq<hws,pegtl::eol> {};
 
 }
 
@@ -129,26 +113,19 @@ namespace nml {
 
    using namespace common;
 
+   // a single value
    struct single_value :
-      pegtl::sor< quoted_string, number, boolean > {};
+      pegtl::sor<quoted_string, number, boolean> {};
 
-   struct nl : pegtl::one<'\n', '\r'> {};
-
-   struct eol : 
-     pegtl::sor<
-	pegtl::string<'\r','\n'>,
-	pegtl::one<'\n'>
-     > {};
-
+   // Fortran90 comment character
    struct comment :
       pegtl::seq<
          pegtl::one<'!'>,
-         pegtl::until<nl>
+         pegtl::until<pegtl::eol>
       > {};
 
-   // Horizontal white space
-   struct hws : pegtl::star< pegtl::one<' ','\t'>> {};
-
+   // White space that consumes both horizontal 
+   // and end-of-line characters
    struct ws : 
       pegtl::star<
 	pegtl::sor<
@@ -158,18 +135,13 @@ namespace nml {
 	 >
        > {};
 
-   struct comma_hws :
-      pegtl::seq< 
-	hws,
-	pegtl::one<','>,
-	hws, 
-        pegtl::opt<comment>,
-	hws
-      > {};
+   struct block_key : identifier {};
 
+   // Comma
    struct comma :
 	   pegtl::seq<pegtl::one<','>,ws> {};
 
+   // a list of values separated by commas
    struct value_list : 
 	pegtl::seq<
            single_value,
@@ -177,102 +149,85 @@ namespace nml {
            pegtl::opt<comma>
 	> {};
 
-   struct assignment_line :
-      pegtl::seq<
-        hws,
-        assignment_key,
-        hws,
-        pegtl::one<'='>,
-        hws,
-        value_list,
-        pegtl::opt< comment >
-      > {};
-
    // Assignment (with optional inline comment)
    struct assignment :
       pegtl::seq<
-	  hws,
-          assignment_key, 
-   	  hws,
+	  hws, assignment_key, hws,
           pegtl::one<'='>,
-          ws, 
-  	  value_list,
-	  hws,
+          ws, value_list, hws,
   	  pegtl::opt<comment>,
-	  pegtl::opt<eol>
+	  pegtl::opt<pegtl::eol>
       > {};
- 
-   struct blank_line : pegtl::seq<ws,nl> {};
 
-   struct content_line :
-   pegtl::seq< assignment, ws > {};
-
-   // configuration blocks
+   // Namelist block opens
    struct block_open :
       pegtl::seq<
 	ws,
 	pegtl::one<'&'>,
-        identifier,
+        block_key,
 	pegtl::opt<comment>,
 	ws,
-	pegtl::opt<nl>
-      >, 
-      block_open_base 
-    {};
+	pegtl::opt<pegtl::eol>
+      > {};
 
+   // Namelist block close
    struct block_close :
        pegtl::seq<
 	 ws,
 	 pegtl::one<'/'>,
 	 ws,
 	 pegtl::opt<comment>,
-	 pegtl::opt<nl>
-       >, 
-       block_close_base 
-    {};
+	 pegtl::opt<pegtl::eol>
+       > {};
 
+   // A namlist block contains assignments,
+   // comments,  or blank lines
    struct block_content :
-	pegtl::star<
-	   pegtl::sor<assignment, comment, blank_line>
-        > {};
+	pegtl::star< pegtl::sor<assignment, comment, blank_line> > {};
 
-   //struct block :
+   // A Fortran Namelist blocks :
    struct block :
-      pegtl::seq<
-        block_open,
-	block_content,
-	block_close
-      > {};
+      pegtl::seq< block_open, block_content, block_close > {};
 
-   // struct normal_line
+   // Namelist files can contain either a namelist block or 
+   // a fortran style comment
    struct normal_line :
       pegtl::sor<block, comment>{};
 
    // Fortran namelist File
    struct grammar :
-       pegtl::must<
-	  pegtl::star<normal_line>, 
-	  pegtl::eof 
-       > {};
+       pegtl::must< pegtl::star<normal_line>, pegtl::eof > {};
 }
 
 namespace MOMcfg {
+
    using  namespace common;
 
-   // Whitespace: spaces or tabs (never consumes newline)
-   struct ws : 
-      pegtl::star< pegtl::sor< pegtl::one<' '>, pegtl::one<'\t'> > > {};
-   // delimiter for vector assignment
+   // File paths do not need to be quoted
+   struct path_char :
+      pegtl::sor< pegtl::alnum, pegtl::one<'/','_','-','.'> > {};
+
+   // Unquoted file paths are supported in the MOM confi files 
+   struct path : pegtl::plus<path_char> {};
+
+   // a single value
+   struct single_value : 
+      pegtl::sor< quoted_string, number,  path, boolean > {};
+
+   // The comma acts as a delimiter for vector assignments
    struct comma :
-      pegtl::seq< ws, pegtl::one<','>, ws > {};
+      pegtl::seq< hws, pegtl::one<','>, hws > {};
 
-   struct value :
-      pegtl::list< single_value, comma > {};
-
+   // a list of values separated by commas
    struct value_list : 
-      pegtl::list< value, comma > {};
+	pegtl::seq<
+           single_value,
+	   pegtl::star<pegtl::seq<comma,single_value>>
+	> {};
 
-   // C-block comment Opening: /*
+   // C-block sytle comments
+   //
+   // comment opening: /*
    struct c_comment_open : 
       pegtl::string<'/','*'> {};
 
@@ -287,23 +242,25 @@ namespace MOMcfg {
     	pegtl::until< pegtl::string<'*','/'> >
       > {};
 
+   // Inline comments:
+   //
    // Comment start  Supports #, !, or //
-   struct comment_start : 
+   struct comment_open : 
       pegtl::sor< pegtl::one<'!','#'>, pegtl::string<'/','/'> > {};
 
    // Comment: must consume at least one character, stop at eolf or eof
    struct comment :
       pegtl::sor<
-        pegtl::seq< ws, comment_start, pegtl::star< pegtl::not_one< '\n', '\r' > > >,
-        pegtl::seq< ws, pegtl::string<'/','*'>, pegtl::until< pegtl::string<'*','/'> > >
+        pegtl::seq< hws, comment_open, pegtl::star< pegtl::not_one< '\n', '\r' > > >,
+        pegtl::seq< hws, c_comment_open, pegtl::until< c_comment_close>>
       > {};
 
    // Assignment (with optional inline comment)
    struct assignment :
       pegtl::seq<
-        ws,assignment_key, ws,
+        hws,assignment_key, hws,
         pegtl::one<'='>,
-        ws, value, ws,
+        hws, value_list, hws,
         pegtl::opt<comment>
       > {};
 
@@ -315,12 +272,12 @@ namespace MOMcfg {
    struct block_open :
       pegtl::seq<
         identifier,
-        pegtl::one<'%'>>, block_open_base {};
+        pegtl::one<'%'>> {};
 
    struct block_close :
       pegtl::seq<
         pegtl::one<'%'>,
-        identifier>, block_close_base {};
+        identifier> {};
 
    struct block_content :
       pegtl::until< block_close > {};
@@ -328,28 +285,19 @@ namespace MOMcfg {
    // Block of parameters
    struct block :
       pegtl::seq<
-        block_open,
-	pegtl::eol,
-	pegtl::star< 
-	   pegtl::sor< content_line, blank_line>  // This is a normal line minus the block... So block is not recursive
-	>,
-        block_close,
-        pegtl::opt< pegtl::eol>
+        block_open, pegtl::eol,
+	pegtl::star<pegtl::sor< content_line, blank_line>>,  // block is not currently recursive
+        block_close, pegtl::opt< pegtl::eol>
       > {};
 
    // struct normal_line
    struct normal_line :
       pegtl::sor<block, content_line, blank_line >{};
 
-   // last line in the file
-   struct last_line :
-      pegtl::sor<block, assignment, comment, c_comment> {};
-
    // MOM_configuration File
    struct grammar :
        pegtl::must<
 	  pegtl::star<normal_line>, 
-	  pegtl::opt<last_line>,
 	  pegtl::eof 
        > {};
 }
@@ -383,9 +331,24 @@ struct action<common::number> {
 template<>
 struct action<common::boolean> {
     template<typename Input>
-    static void apply(const Input& in, Config& cfg) {
-        std::string val = (in.string() == "True" || in.string() == "T") ? "True" : "False";
-        cfg.values[cfg.current_block][cfg.current_key].push_back(val);
+    static void apply(const Input& in, Config& cfg)
+    {
+        std::string s = in.string();
+
+        // Remove optional dots
+        if (!s.empty() && s.front() == '.')
+            s.erase(0,1);
+        if (!s.empty() && s.back() == '.')
+            s.pop_back();
+
+        // Lowercase once
+        std::transform(s.begin(), s.end(), s.begin(),
+                       [](unsigned char c){ return std::tolower(c); });
+
+        bool value = (s == "t" || s == "true");
+
+        cfg.values[cfg.current_block][cfg.current_key]
+            .push_back(value ? "True" : "False");
     }
 };
 
@@ -400,7 +363,7 @@ struct action<common::quoted_string> {
 };
 
 template<>
-struct action<common::path> {
+struct action<MOMcfg::path> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
         cfg.values[cfg.current_block][cfg.current_key].push_back(in.string());
@@ -414,7 +377,7 @@ struct action<MOMcfg::block_open> {
     static void apply(const Input& in, Config& cfg) {
         std::string s = in.string();
         s.erase(std::remove(s.begin(), s.end(), '\n'), s.end());
-        s.pop_back(); // remove %
+        s.pop_back(); // remove trailing %
         cfg.current_block = s;
 
         // Optional: initialize map for this block
@@ -441,12 +404,12 @@ struct action<MOMcfg::block_close> {
 
 // NML  blocks
 template<>
-struct action<nml::block_open> {
+struct action<nml::block_key> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
         std::string s = in.string();
-        s.erase(std::remove(s.begin(), s.end(), '\n'), s.end());
-	s.erase(0,1); // remove leading &
+        //s.erase(std::remove(s.begin(), s.end(), '\n'), s.end());
+	//s.erase(0,1); // remove leading &
         cfg.current_block = s;
 
         // Optional: initialize map for this block
@@ -516,8 +479,6 @@ int main(int argc, char** argv)
         std::cerr << "No configuration files provided.\n";
         return 1;
     }
-    // Turns on grammer debugging
-    // (void) tao::pegtl::analyze<grammar>();
     
     Config cfg;
 
