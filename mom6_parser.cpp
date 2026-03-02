@@ -132,19 +132,15 @@ namespace nml {
    struct bare_value : pegtl::plus< pegtl::not_one< ',', '/', '!', '\n', '\r' > > {};
 
    struct single_value :
-      pegtl::sor<
-        quoted_string,  // 'abc'
-        number,         // 42, 3.14
-        boolean,        // .true., .false.
-        bare_value      // e.g., unquoted names or identifiers
-      > {};
+      pegtl::sor< quoted_string, number, boolean > {};
 
-   // Value
-   //struct single_value : 
-   //   pegtl::sor< quoted_string, number, boolean > {};
-
-	     
    struct nl : pegtl::one<'\n', '\r'> {};
+
+   struct eol : 
+     pegtl::sor<
+	pegtl::string<'\r','\n'>,
+	pegtl::one<'\n'>
+     > {};
 
    struct comment :
       pegtl::seq<
@@ -158,61 +154,98 @@ namespace nml {
    //      pegtl::ascii::space,
    //   >
    //> {};
-
-   struct hws : 
-      pegtl::plus< 
-	pegtl::one<' ', '\t'> 
-      > {};  // horizontal whitespace
-
-   struct comma_hws :
-      pegtl::seq<
-         pegtl::opt<hws>,     // optional spaces/tabs before comma
-	 //ws,
-         pegtl::one<','>,
-	 //ws 
-         pegtl::opt<hws>      // optional spaces/tabs after comma
-      > {};
+   // Horizontal white space
+   struct hws : pegtl::star< pegtl::one<' ','\t'>> {};
 
    struct ws : 
       pegtl::star<
 	pegtl::sor<
 	     pegtl::one<' ', '\t'>,
-	     nl
+	     comment,
+	     pegtl::eol
 	 >
        > {};
-   struct comma_ws :
-      pegtl::seq< ws, pegtl::one<','>, ws 
+
+   struct comma_hws :
+      pegtl::seq< 
+	hws,
+	pegtl::one<','>,
+	hws, 
+        pegtl::opt<comment>,
+	hws
       > {};
 
-   // delimiter for vector assignment
-   //struct comma :
-   //   pegtl::seq< ws, pegtl::one<','>, ws > {};
-   //
-   struct comma_EOL :
-      pegtl:: seq<
-	 ws,
-         pegtl::one<','>,
-	 ws
-      > {};
+   struct comma :
+	   pegtl::seq<pegtl::one<','>,ws> {};
 
    struct value_list : 
 	pegtl::seq<
-	   single_value,
-	   pegtl::star<pegtl::seq<comma_ws,single_value>>,
-           pegtl::opt<comma_ws>
+           single_value,
+	   pegtl::star<pegtl::seq<comma,single_value>>,
+           pegtl::opt<comma>
 	> {};
+
+//   struct continuation_value :
+//	pegtl::seq<
+//	   comma_ws,
+//	   pegtl::opt<comment>,
+//	   ws,
+//	   pegtl::not_at< assignment_key>,
+//	   single_value
+//	> {};
+   struct continuation_value :
+    pegtl::seq<
+        comma_hws,
+        ws,
+        single_value
+    > {};
+   
+//   struct value_list : 
+//	pegtl::seq<
+//	   single_value,
+//	   pegtl::star<comma_hws,single_value>
+//	> {};
+
+   struct assignment_line :
+      pegtl::seq<
+        hws,
+        assignment_key,
+        hws,
+        pegtl::one<'='>,
+        hws,
+        value_list,
+        pegtl::opt< comment >
+      > {};
+
+    struct continuation_line :
+      pegtl::seq<
+         hws,
+         value_list,
+	 pegtl::not_at<pegtl::one<'='>>
+       > {};
+
+
 
    // Assignment (with optional inline comment)
    struct assignment :
       pegtl::seq<
-	ws,
-        assignment_key, 
-	ws,
-        pegtl::one<'='>,
-        ws, 
-	value_list,
-	pegtl::opt<comment>
+	  hws,
+          assignment_key, 
+   	  hws,
+          pegtl::one<'='>,
+          ws, 
+  	  value_list,
+	  hws,
+  	  pegtl::opt<comment>,
+	  pegtl::opt<eol>
       > {};
+ 
+//    struct assignment : assignment_line {};
+//   struct assignment :
+//    pegtl::seq<
+//        assignment_line,
+//        pegtl::star< continuation_line >
+//    > {};
 
    struct blank_line : pegtl::seq<ws,nl> {};
 
@@ -226,6 +259,7 @@ namespace nml {
 	pegtl::one<'&'>,
         identifier,
 	pegtl::opt<comment>,
+	ws,
 	pegtl::opt<nl>
       >, 
       block_open_base 
