@@ -1,0 +1,5 @@
+! foo namelist
+&foo
+a = 4, 1, 3
+b = 'a string'
+/

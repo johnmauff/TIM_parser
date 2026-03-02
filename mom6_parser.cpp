@@ -129,8 +129,6 @@ namespace nml {
 
    using namespace common;
 
-//   struct bare_value : pegtl::plus< pegtl::not_one< ',', '/', '!', '\n', '\r' > > {};
-
    struct single_value :
       pegtl::sor< quoted_string, number, boolean > {};
 

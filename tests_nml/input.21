@@ -1,0 +1,3 @@
+! Single assignment with one entry
+ &bar 
+  b = 4 /

@@ -1,0 +1,5 @@
+! A leading comment
+&foo
+a = 4,		! set teh a value
+b = 'a string'  ! Set the b value
+/

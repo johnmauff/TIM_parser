@@ -1,0 +1,6 @@
+! Single assignment with one entry
+ &bar 
+  b = 4 /
+ &var
+  a = 3, ! comment
+      9  /

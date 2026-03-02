@@ -1,0 +1,13 @@
+! Single assignment with one entry
+ &bar 
+  b = 4 /
+ &bart
+  b = 2,3,4 /
+! multiline assignments
+ &var
+  a = 3, ! assign
+      9  /
+! multiline assignments + inline comments
+ &varn
+  a = 3,  ! assign a
+      9  / ! end of block

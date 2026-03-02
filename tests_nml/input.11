@@ -1,0 +1,4 @@
+&foo
+a = 4
+b = 'a string' 
+/
