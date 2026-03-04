@@ -286,13 +286,13 @@ namespace MOMcfg {
    struct block :
       pegtl::seq<
         block_open, pegtl::eol,
-	pegtl::star<pegtl::sor< content_line, blank_line>>,  // block is not currently recursive
+	pegtl::star<pegtl::sor< content_line, blank_line> >,  // block is not currently recursive
         block_close, pegtl::opt< pegtl::eol>
       > {};
 
    // struct normal_line
    struct normal_line :
-      pegtl::sor<block, content_line, blank_line >{};
+      pegtl::sor<block, content_line, blank_line>{};
 
    // MOM_configuration File
    struct grammar :
@@ -408,8 +408,6 @@ struct action<nml::block_key> {
     template<typename Input>
     static void apply(const Input& in, Config& cfg) {
         std::string s = in.string();
-        //s.erase(std::remove(s.begin(), s.end(), '\n'), s.end());
-	//s.erase(0,1); // remove leading &
         cfg.current_block = s;
 
         // Optional: initialize map for this block
